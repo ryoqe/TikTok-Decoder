@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Media output directory
+output/
+
+# OS files
+.DS_Store
+Thumbs.db
