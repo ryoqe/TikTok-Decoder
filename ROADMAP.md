@@ -19,28 +19,30 @@
 
 ---
 
-## 🚀 Phase 2: Hardware Acceleration & Performance Scaling (v1.1.0 - ⏱️ Q3 2026)
+## 🚀 Phase 2: Hardware Acceleration & Performance Scaling (v1.1.0 - ✅ COMPLETED)
 
-- [ ] **GPU Acceleration Auto-Detection**:
-  - [ ] NVIDIA NVENC (`-c:v h264_nvenc`) support.
-  - [ ] Intel QuickSync (QSV) & AMD AMF hardware encoder fallback.
-- [ ] **Multi-Threaded Parallel Batch Engine**:
-  - [ ] Concurrent multi-file processing using Python `concurrent.futures`.
-  - [ ] Memory-efficient queuing for large batch folders (100+ videos).
-- [ ] **Audio & Quality Enhancements**:
-  - [ ] Integrated LUFS loudness normalization (`-af loudnorm`).
-  - [ ] Custom CRF/Bitrate tuning sliders.
+- [x] **GPU Acceleration Auto-Detection**:
+  - [x] NVIDIA NVENC (`h264_nvenc`) & Windows MediaFoundation (`h264_mf`) auto-detection.
+  - [x] Intel QuickSync (QSV) & AMD AMF hardware encoder fallback.
+- [x] **Multi-Threaded Parallel Batch Engine**:
+  - [x] Concurrent multi-file processing using Python `concurrent.futures.ThreadPoolExecutor`.
+  - [x] Configurable worker count (`-j / --jobs`).
+- [x] **Audio & Quality Enhancements**:
+  - [x] Integrated LUFS loudness normalization (`-af loudnorm`).
+  - [x] Quality preset selection (UHQ CRF 16, HQ CRF 18, Balanced CRF 23).
 
 ---
 
-## 🎨 Phase 3: Modern Desktop GUI (v1.2.0 - ⏱️ Q4 2026)
+## 🎨 Phase 3: Modern Desktop GUI & Visual Interface (v1.2.0 - ✅ COMPLETED)
 
-- [ ] **Cross-Platform GUI (PyQt6 / CustomTkinter)**:
-  - [ ] Clean dark-mode interface with drag-and-drop zone.
-  - [ ] Side-by-side video player preview (Original vs Repaired).
-  - [ ] Real-time progress indicators and video thumbnail generation.
-- [ ] **Standalone Portable Executable**:
-  - [ ] PyInstaller single `.exe` bundle for Windows (no Python installation required).
+- [x] **Desktop GUI Application (`gui.py` / `src/gui_app.py`)**:
+  - [x] Dark-themed modern interface with live queue table and status indicators.
+  - [x] File and folder drag-and-drop / add queue buttons.
+  - [x] Settings control panel (60/120 FPS target, CRF quality, GPU HW accel toggle, LUFS audio toggle, Worker thread selector).
+  - [x] Background asynchronous repair engine so GUI never freezes.
+  - [x] Built-in video player launcher ("Play Selected Output").
+- [x] **Windows Launcher**: `run.bat` updated with option `[1] Launch Desktop GUI App`.
+- [x] **CLI `--gui` Flag**: `python main.py --gui` launches GUI directly.
 
 ---
 

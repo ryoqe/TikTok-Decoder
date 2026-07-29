@@ -6,8 +6,28 @@ __pycache__/
 env/
 venv/
 
-# Media output directory
-output/
+# Media directories & test files
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.bin
+*.tmp
+
+# Scratch scripts, logs, and sessions
+scratch/
+*.log
+*.session
+*.session-journal
+
+# Telegram Bot & VPS deployment (Excluded from public Git)
+telegram_bot/
+DEPLOYMENT_LINUX.md
+deploy_linux/
 
 # OS files
 .DS_Store

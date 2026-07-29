@@ -12,56 +12,39 @@ from src.utils import (
 )
 from src.analyzer import VideoAnalyzer, ExploitType
 from src.converter import VideoConverter
+from src.batch import BatchProcessor
 
-def process_file(file_path, output_dir, analyzer, converter, target_fps=60, crf=16):
-    log_header(f"Processing: {os.path.basename(file_path)}")
-    analysis = analyzer.analyze(file_path)
-    
-    if not analysis:
-        log_error(f"Failed to analyze video: {file_path}")
-        return False
-        
-    print(f"  • Video Duration: {analysis['video_duration']:.2f}s")
-    print(f"  • Audio Duration: {analysis['audio_duration']:.2f}s")
-    print(f"  • Frame Count: {analysis['nb_frames']} frames")
-    print(f"  • Detected Exploit: {analysis['exploit_type']}")
-    
-    if analysis['exploit_type'] == ExploitType.METHOD_3_CONTAINER_DOUBLED:
-        print("  • Recognized: EditingSource / 30fps Header Hack -> Restoring 60 FPS timeline & natural 1.0x audio")
-    elif analysis['exploit_type'] == ExploitType.METHOD_2_DUMMY_PADDING:
-        print(f"  • Recognized: LuisAlves10 / Dummy Padding -> Stripping trailing garbage packets beyond {analysis['target_trim_dur']:.2f}s")
-    elif analysis['exploit_type'] == ExploitType.METHOD_1_ITSSCALE_PTS:
-        print(f"  • Recognized: ut0ku / 120fps-method (-itsscale) -> Rescaling PTS ({analysis['pts_scale_factor']:.6f}) to align high-FPS frames")
-    elif analysis['exploit_type'] == ExploitType.METHOD_4_VFR_NOBLUR:
-        print("  • Recognized: irgifebry / NoBlur (VFR Jitter) -> Normalizing to Constant Frame Rate (CFR)")
-    
-    base_name = os.path.basename(file_path)
-    name_no_ext, ext = os.path.splitext(base_name)
-    out_name = f"repaired_{name_no_ext}.mp4"
-    out_path = os.path.join(output_dir, out_name)
-    
-    log_info(f"Target Repair FPS: {target_fps} | CRF: {crf}")
-    result = converter.convert(analysis, out_path, target_fps=target_fps, crf=crf)
-    
-    if result.get("success"):
-        log_success(f"Repaired! Saved to: {out_path} ({result['formatted_size']}, took {result['elapsed_sec']:.1f}s)\n")
-        return True
-    else:
-        log_error(f"Repair failed for {file_path}\n")
-        return False
+METHOD_MAP = {
+    "auto": "AUTO_DETECT",
+    "method1": ExploitType.METHOD_1_ITSSCALE_PTS,
+    "method2": ExploitType.METHOD_2_DUMMY_PADDING,
+    "method3": ExploitType.METHOD_3_CONTAINER_DOUBLED,
+    "method4": ExploitType.METHOD_4_VFR_NOBLUR,
+    "standard": ExploitType.METHOD_STANDARD
+}
 
 def main():
     parser = argparse.ArgumentParser(
-        description="TikTok Video Exploit Decoder & Repair Tool (60/120 FPS Fixer)",
+        description="TikTok Video Exploit Decoder & Repair Tool v1.2.0",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("-i", "--input", help="Path to input video file or folder (Default: 'input/')", default="input")
     parser.add_argument("-o", "--output", help="Path to output directory (Default: 'output/')", default="output")
     parser.add_argument("-fps", "--target-fps", type=int, help="Target FPS for repaired video (Default: 60)", default=60)
     parser.add_argument("-crf", "--crf", type=int, help="H.264 CRF quality level (Default: 16)", default=16)
+    parser.add_argument("-m", "--method", choices=list(METHOD_MAP.keys()), default="auto", help="Manual Exploit Repair Method Override")
+    parser.add_argument("--gui", action="store_true", help="Launch Desktop Graphical Interface (GUI)")
+    parser.add_argument("--gpu", "--hwaccel", action="store_true", help="Enable GPU Hardware Acceleration", default=True)
+    parser.add_argument("--lufs", action="store_true", help="Enable LUFS Audio Normalization")
+    parser.add_argument("-j", "--jobs", type=int, help="Parallel worker threads for batch repair", default=2)
     
     args = parser.parse_args()
     
+    if args.gui:
+        from src.gui_app import launch_gui
+        launch_gui()
+        return
+        
     inp_path = clean_path(args.input)
     out_dir = clean_path(args.output)
     
@@ -80,18 +63,30 @@ def main():
         log_info("Please place .mp4 videos inside the 'input/' folder or specify a file path with -i <path>")
         return
         
-    log_header(f"Found {len(files_to_process)} video(s) for processing")
+    log_header(f"TikTok Decoder v1.2.0 - Batch Engine ({len(files_to_process)} video(s))")
     print(f"Input path:  {inp_path}")
-    print(f"Output path: {out_dir}\n")
+    print(f"Output path: {out_dir}")
+    print(f"Method Mode: {args.method.upper()}")
+    print(f"HW Accel:   {'ENABLED' if args.gpu else 'DISABLED'}")
+    print(f"Jobs:       {args.jobs} parallel worker(s)\n")
     
     analyzer = VideoAnalyzer()
     converter = VideoConverter()
+    processor = BatchProcessor(analyzer, converter)
     
-    success_count = 0
-    for f in files_to_process:
-        if process_file(f, out_dir, analyzer, converter, target_fps=args.target_fps, crf=args.crf):
-            success_count += 1
-            
+    override_m = METHOD_MAP.get(args.method.lower(), "AUTO_DETECT")
+    
+    results = processor.process_batch(
+        files_to_process,
+        out_dir,
+        target_fps=args.target_fps,
+        crf=args.crf,
+        use_hwaccel=args.gpu,
+        override_method=override_m,
+        max_workers=args.jobs
+    )
+    
+    success_count = sum(1 for r in results if r.get("success"))
     log_header("Processing Complete")
     log_success(f"Successfully repaired {success_count} / {len(files_to_process)} file(s).")
     print(f"Check output folder: {out_dir}")
