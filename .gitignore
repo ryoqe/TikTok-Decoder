@@ -1,10 +1,14 @@
-# Python
+# Python & PyInstaller
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
 env/
 venv/
+build/
+dist/
+*.spec
+
 
 # Media directories & test files
 input/*
