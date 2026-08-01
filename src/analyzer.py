@@ -11,8 +11,9 @@ class ExploitType:
     METHOD_STANDARD = "METHOD_STANDARD"                      # Standard compliant video
 
 class VideoAnalyzer:
-    def __init__(self, ffprobe_cmd="ffprobe"):
+    def __init__(self, ffprobe_cmd="ffprobe", probe_timeout=30):
         self.ffprobe_cmd = ffprobe_cmd
+        self.probe_timeout = probe_timeout
 
     def probe(self, file_path):
         """Run ffprobe on file and return JSON dict."""
@@ -24,7 +25,10 @@ class VideoAnalyzer:
             file_path
         ]
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            res = subprocess.run(
+                cmd, capture_output=True, text=True, check=True,
+                timeout=self.probe_timeout,
+            )
             return json.loads(res.stdout)
         except Exception as e:
             log_warning(f"ffprobe failed for {file_path}: {e}")

@@ -1,6 +1,8 @@
 import subprocess
 import os
 import time
+import queue
+import threading
 from src.analyzer import ExploitType
 from src.hwaccel import HWAccelDetector
 from src.utils import log_info, log_success, log_error, format_size
@@ -9,7 +11,7 @@ class VideoConverter:
     def __init__(self, ffmpeg_cmd="ffmpeg"):
         self.ffmpeg_cmd = ffmpeg_cmd
 
-    def convert(self, analysis_data, output_path, target_fps=60, crf=17, preset="ultrafast", use_hwaccel=True, normalize_audio=False, override_method=None, progress_callback=None):
+    def convert(self, analysis_data, output_path, target_fps=60, crf=17, preset="ultrafast", use_hwaccel=True, normalize_audio=False, override_method=None, progress_callback=None, timeout_seconds=1800, max_output_bytes=None):
         """Convert/repair video with ultra-fast multithreading and accurate expected duration progress calculation."""
         inp_path = analysis_data["file_path"]
         exploit_type = override_method if (override_method and override_method != "AUTO_DETECT") else analysis_data["exploit_type"]
@@ -101,7 +103,8 @@ class VideoConverter:
             cmd.append(output_path)
             
         # Add -progress pipe:1 to monitor real-time rendering percentage
-        cmd_progress = cmd[:-1] + ["-progress", "pipe:1", "-nostats", cmd[-1]]
+        size_limit = ["-fs", str(int(max_output_bytes))] if max_output_bytes else []
+        cmd_progress = cmd[:-1] + size_limit + ["-progress", "pipe:1", "-nostats", cmd[-1]]
 
         start_time = time.time()
         try:
@@ -112,16 +115,38 @@ class VideoConverter:
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
             )
             output_lines = []
-            
-            while True:
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                if line:
-                    output_lines.append(line)
-                    if len(output_lines) > 400:
-                        output_lines.pop(0)
-                if line and "out_time_us=" in line:
+            line_queue = queue.Queue()
+
+            def read_output():
+                try:
+                    for output_line in iter(process.stdout.readline, ""):
+                        line_queue.put(output_line)
+                finally:
+                    line_queue.put(None)
+
+            threading.Thread(target=read_output, daemon=True).start()
+            deadline = time.monotonic() + max(1, int(timeout_seconds))
+            reader_done = False
+
+            while not reader_done or process.poll() is None:
+                if time.monotonic() >= deadline:
+                    process.kill()
+                    process.wait(timeout=10)
+                    return {
+                        "success": False,
+                        "error": f"Обработка превысила лимит {int(timeout_seconds)} секунд и была остановлена.",
+                    }
+                try:
+                    line = line_queue.get(timeout=0.5)
+                except queue.Empty:
+                    continue
+                if line is None:
+                    reader_done = True
+                    continue
+                output_lines.append(line)
+                if len(output_lines) > 400:
+                    output_lines.pop(0)
+                if "out_time_us=" in line:
                     try:
                         us_val = int(line.split("=")[1].strip())
                         sec_val = us_val / 1000000.0
@@ -131,7 +156,7 @@ class VideoConverter:
                     except Exception:
                         pass
 
-            process.wait()
+            process.wait(timeout=10)
             stderr_out = "".join(output_lines)
             elapsed = time.time() - start_time
             
